@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Zunami Network Snapshot",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "source", "summary", "nodes", "edges", "alerts"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "enum": ["docker", "emulator"] },
+    "summary": {
+      "type": "object",
+      "required": ["total_nodes", "active_nodes", "dead_nodes", "total_edges", "total_traffic_bytes"],
+      "properties": {
+        "total_nodes": { "type": "integer", "minimum": 0 },
+        "active_nodes": { "type": "integer", "minimum": 0 },
+        "dead_nodes": { "type": "integer", "minimum": 0 },
+        "total_edges": { "type": "integer", "minimum": 0 },
+        "total_traffic_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "type", "status", "ports", "metrics", "tags"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "enum": ["container", "database", "cache", "external", "unknown"] },
+          "status": { "type": "string", "enum": ["active", "warning", "dead"] },
+          "ip_address": { "type": ["string", "null"] },
+          "image": { "type": ["string", "null"] },
+          "ports": { "type": "array", "items": { "type": "integer" } },
+          "metrics": {
+            "type": "object",
+            "required": ["rx_bytes", "tx_bytes", "connections_count", "idle_seconds"],
+            "properties": {
+              "rx_bytes": { "type": "integer", "minimum": 0 },
+              "tx_bytes": { "type": "integer", "minimum": 0 },
+              "connections_count": { "type": "integer", "minimum": 0 },
+              "idle_seconds": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "target", "protocol", "port", "status", "metrics"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "target": { "type": "string", "minLength": 1 },
+          "protocol": { "type": "string", "enum": ["TCP", "UDP", "HTTP", "GRPC"] },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "status": { "type": "string", "enum": ["healthy", "degraded", "error"] },
+          "metrics": {
+            "type": "object",
+            "required": ["bytes_total", "packets_total", "latency_ms", "error_rate"],
+            "properties": {
+              "bytes_total": { "type": "integer", "minimum": 0 },
+              "packets_total": { "type": "integer", "minimum": 0 },
+              "latency_ms": { "type": "number", "minimum": 0 },
+              "error_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "type", "target_id", "message"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "type": "string", "enum": ["info", "warning", "critical"] },
+          "type": { "type": "string", "enum": ["dead_node", "high_latency", "traffic_spike", "packet_loss"] },
+          "target_id": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
