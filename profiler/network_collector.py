@@ -8,7 +8,7 @@ def get_connection_info(con):
 
     try:
         pid = con.pid
-    except (psutil.Error, OSError, AttributeError):
+    except (psutil.Error, OSError, AttributeError, TypeError):
         pid = None
 
     try:
@@ -23,7 +23,6 @@ def get_connection_info(con):
         "pid": pid,
         "laddr": laddr
     }
-
 
 def format_error(exc, scope, stage):
 
@@ -55,14 +54,12 @@ def format_error(exc, scope, stage):
         "message": str(exc)
     }
 
-
 def add_connection_error(errors, con, exc, stage):
 
     errors.append({
         **get_connection_info(con),
         "error": format_error(exc, "connection", stage)
     })
-
 
 def collect_connections(kind="inet"):
 
@@ -84,21 +81,7 @@ def collect_connections(kind="inet"):
 
     for con in connections:
 
-        try:
-            if con.type == socket.SOCK_STREAM:
-                protocol = "TCP"
-
-            elif con.type == socket.SOCK_DGRAM:
-                protocol = "UDP"
-
-            else:
-                continue
-        except (psutil.Error, OSError, AttributeError) as exc:
-            add_connection_error(
-                errors, con, exc, "protocol"
-            )
-            continue
-
+        protocol = None
         local_ip = None
         local_port = None
         remote_ip = None
@@ -106,37 +89,40 @@ def collect_connections(kind="inet"):
         status = None
 
         try:
+            if con.type == socket.SOCK_STREAM:
+                protocol = "TCP"
+            elif con.type == socket.SOCK_DGRAM:
+                protocol = "UDP"
+            else:
+                protocol = "unknown"
+        except (psutil.Error, OSError, AttributeError, TypeError) as exc:
+            protocol = "unknown"
+            add_connection_error(errors, con, exc, "protocol")
+
+        try:
             if con.laddr:
                 local_ip = con.laddr.ip
                 local_port = con.laddr.port
         except (psutil.Error, OSError, AttributeError, TypeError) as exc:
-            add_connection_error(
-                errors, con, exc, "local_address"
-            )
+            add_connection_error(errors, con, exc, "local_address")
 
         try:
             if con.raddr:
                 remote_ip = con.raddr.ip
                 remote_port = con.raddr.port
         except (psutil.Error, OSError, AttributeError, TypeError) as exc:
-            add_connection_error(
-                errors, con, exc, "remote_address"
-            )
+            add_connection_error(errors, con, exc, "remote_address")
 
         try:
             pid = con.pid
-        except (psutil.Error, OSError, AttributeError) as exc:
+        except (psutil.Error, OSError, AttributeError, TypeError) as exc:
             pid = None
-            add_connection_error(
-                errors, con, exc, "pid"
-            )
+            add_connection_error(errors, con, exc, "pid")
 
         try:
             status = con.status
-        except (psutil.Error, OSError, AttributeError) as exc:
-            add_connection_error(
-                errors, con, exc, "status"
-            )
+        except (psutil.Error, OSError, AttributeError, TypeError) as exc:
+            add_connection_error(errors, con, exc, "status")
 
         result.append({
             "protocol": protocol,
