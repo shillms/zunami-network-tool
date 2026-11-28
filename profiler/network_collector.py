@@ -25,21 +25,43 @@ def get_connection_info(con):
     }
 
 
-def format_error(exc):
+def format_error(exc, scope, stage):
 
     if isinstance(exc, psutil.AccessDenied):
         code = "ACCESS_DENIED"
 
+    elif isinstance(exc, psutil.ZombieProcess):
+        code = "ZOMBIE_PROCESS"
+
     elif isinstance(exc, psutil.NoSuchProcess):
         code = "NO_SUCH_PROCESS"
+
+    elif isinstance(exc, OSError):
+        code = "OS_ERROR"
+
+    elif isinstance(exc, AttributeError):
+        code = "ATTRIBUTE_ERROR"
+
+    elif isinstance(exc, TypeError):
+        code = "TYPE_ERROR"
 
     else:
         code = "UNKNOWN_ERROR"
 
     return {
+        "scope": scope,
+        "stage": stage,
         "code": code,
         "message": str(exc)
     }
+
+
+def add_connection_error(errors, con, exc, stage):
+
+    errors.append({
+        **get_connection_info(con),
+        "error": format_error(exc, "connection", stage)
+    })
 
 
 def collect_connections(kind="inet"):
@@ -49,17 +71,18 @@ def collect_connections(kind="inet"):
 
     try:
         connections = psutil.net_connections(kind=kind)
-
     except (psutil.Error, OSError) as exc:
         return {
             "result": [],
             "errors": [],
-            "error": format_error(exc)
+            "error": format_error(
+                exc,
+                "global",
+                "collect_connections"
+            )
         }
 
     for con in connections:
-
-        connection_info = get_connection_info(con)
 
         try:
             if con.type == socket.SOCK_STREAM:
@@ -70,12 +93,10 @@ def collect_connections(kind="inet"):
 
             else:
                 continue
-
         except (psutil.Error, OSError, AttributeError) as exc:
-            errors.append({
-                **connection_info,
-                "error": format_error(exc)
-            })
+            add_connection_error(
+                errors, con, exc, "protocol"
+            )
             continue
 
         local_ip = None
@@ -89,38 +110,33 @@ def collect_connections(kind="inet"):
                 local_ip = con.laddr.ip
                 local_port = con.laddr.port
         except (psutil.Error, OSError, AttributeError, TypeError) as exc:
-            errors.append({
-                **connection_info,
-                "error": format_error(exc)
-            })
+            add_connection_error(
+                errors, con, exc, "local_address"
+            )
 
         try:
             if con.raddr:
                 remote_ip = con.raddr.ip
                 remote_port = con.raddr.port
         except (psutil.Error, OSError, AttributeError, TypeError) as exc:
-            errors.append({
-                **connection_info,
-                "error": format_error(exc)
-            })
+            add_connection_error(
+                errors, con, exc, "remote_address"
+            )
 
         try:
             pid = con.pid
         except (psutil.Error, OSError, AttributeError) as exc:
             pid = None
-            errors.append({
-                **connection_info,
-                "error": format_error(exc)
-            })
+            add_connection_error(
+                errors, con, exc, "pid"
+            )
 
-        if protocol == "TCP":
-            try:
-                status = con.status
-            except (psutil.Error, OSError, AttributeError) as exc:
-                errors.append({
-                    **connection_info,
-                    "error": format_error(exc)
-                })
+        try:
+            status = con.status
+        except (psutil.Error, OSError, AttributeError) as exc:
+            add_connection_error(
+                errors, con, exc, "status"
+            )
 
         result.append({
             "protocol": protocol,
